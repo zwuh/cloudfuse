@@ -10,6 +10,9 @@
 #define MAX_URL_SIZE (MAX_PATH_SIZE * 3)
 #define USER_AGENT "CloudFuse"
 
+/* cURL operation timeout configurable */
+int operation_timeout;
+
 typedef struct curl_slist curl_slist;
 
 typedef struct dir_entry

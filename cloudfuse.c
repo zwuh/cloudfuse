@@ -429,6 +429,7 @@ static struct options {
     char tenant[OPTION_SIZE];
     char password[OPTION_SIZE];
     char cache_timeout[OPTION_SIZE];
+    char operation_timeout[OPTION_SIZE];
     char authurl[OPTION_SIZE];
     char region[OPTION_SIZE];
     char use_snet[OPTION_SIZE];
@@ -438,6 +439,7 @@ static struct options {
     .password = "",
     .tenant = "",
     .cache_timeout = "600",
+    .operation_timeout = "120",
     .authurl = "https://identity.api.rackspacecloud.com/v2.0/",
     .region = "",
     .use_snet = "false",
@@ -451,6 +453,7 @@ int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs
       sscanf(arg, " api_key = %[^\r\n ]", options.password) ||
       sscanf(arg, " password = %[^\r\n ]", options.password) ||
       sscanf(arg, " cache_timeout = %[^\r\n ]", options.cache_timeout) ||
+      sscanf(arg, " operation_timeout = %[^\r\n ]", options.operation_timeout) ||
       sscanf(arg, " authurl = %[^\r\n ]", options.authurl) ||
       sscanf(arg, " region = %[^\r\n ]", options.region) ||
       sscanf(arg, " use_snet = %[^\r\n ]", options.use_snet) ||
@@ -479,6 +482,7 @@ int main(int argc, char **argv)
   fuse_opt_parse(&args, &options, NULL, parse_option);
 
   cache_timeout = atoi(options.cache_timeout);
+  operation_timeout = atoi(options.operation_timeout);
 
   if (!*options.username || !*options.password)
   {

@@ -96,9 +96,11 @@ static int send_request(char *method, const char *path, FILE *fp,
                         xmlParserCtxtPtr xmlctx, curl_slist *extra_headers)
 {
   char url[MAX_URL_SIZE];
+  char curl_err_msg[CURL_ERROR_SIZE];
   char *slash;
   long response = -1;
   int tries = 0;
+  int curl_err;
 
   if (!storage_url[0])
   {
@@ -129,7 +131,9 @@ static int send_request(char *method, const char *path, FILE *fp,
     curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, operation_timeout);
     curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_err_msg);
     add_header(&headers, "X-Auth-Token", storage_token);
     if (!strcasecmp(method, "MKDIR"))
     {
@@ -173,7 +177,10 @@ static int send_request(char *method, const char *path, FILE *fp,
       headers = curl_slist_append(headers, extra->data);
     }
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_perform(curl);
+    curl_err = curl_easy_perform(curl);
+    if (curl_err != CURLE_OK) {
+        debugf("curl_easy_perform error: %s", curl_err_msg);
+    }
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response);
     curl_slist_free_all(headers);
     curl_easy_reset(curl);
