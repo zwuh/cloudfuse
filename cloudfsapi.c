@@ -185,14 +185,21 @@ static int send_request(char *method, const char *path, FILE *fp,
     curl_slist_free_all(headers);
     curl_easy_reset(curl);
     return_connection(curl);
-    if (response >= 200 && response < 400)
-      return response;
+    if (response >= 200 && response < 400) {
+      goto end; // success (TODO: 3xx ?)
+    } else if (response == 401) {
+      // re-authenticate on 401s
+      if (!cloudfs_connect()) {
+        goto end;
+      }
+    } else if (response == 404) {
+      goto end; // not found
+    }
     sleep(8 << tries); // backoff
-    if (response == 401 && !cloudfs_connect()) // re-authenticate on 401s
-      return response;
     if (xmlctx)
       xmlCtxtResetPush(xmlctx, NULL, 0, NULL, NULL);
   }
+end:
   return response;
 }
 
