@@ -10,6 +10,10 @@
 #define MAX_URL_SIZE (MAX_PATH_SIZE * 3)
 #define USER_AGENT "CloudFuse"
 
+#define handle_error(err, msg) \
+ do { errno = err; perror(msg); exit(EXIT_FAILURE); } while (0)
+
+
 typedef struct curl_slist curl_slist;
 
 typedef struct dir_entry

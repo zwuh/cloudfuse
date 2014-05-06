@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "cache.h"
 #include "cloudfsapi.h"
 #include "config.h"
 
@@ -21,6 +22,8 @@
 #define OPTION_SIZE 1024
 
 static int cache_timeout;
+
+static pthread_t sync_daemon_thread;
 
 typedef struct dir_cache
 {
@@ -409,8 +412,33 @@ static int cfs_rename(const char *src, const char *dst)
 
 static void *cfs_init(struct fuse_conn_info *conn)
 {
+  int rval;
+  void *cache_ptr;
+
   signal(SIGPIPE, SIG_IGN);
-  return NULL;
+  cache_ptr = cache_init();
+  rval = pthread_create(&sync_daemon_thread, NULL, cache_sync_worker, cache_ptr);
+  if (0 != rval) {
+    handle_error(rval, "pthread_create(cache_sync_worker)");
+  }
+  return cache_ptr;
+}
+
+static void cfs_destroy(void *cache_ptr)
+{
+  void *res;
+  int rval;
+
+  rval = pthread_cancel(sync_daemon_thread);
+  if (0 != rval) {
+    handle_error(rval, "pthread_cancel(sync_daemon)");
+  }
+  rval = pthread_join(sync_daemon_thread, &res);
+  if (0 != rval) {
+    handle_error(rval, "pthread_join(sync_daemon)");
+  }
+  /* _destroy will flush the cache */
+  cache_destroy(cache_ptr);
 }
 
 char *get_home_dir()
@@ -429,6 +457,7 @@ static struct options {
     char tenant[OPTION_SIZE];
     char password[OPTION_SIZE];
     char cache_timeout[OPTION_SIZE];
+    char sync_cycle[OPTION_SIZE];
     char authurl[OPTION_SIZE];
     char region[OPTION_SIZE];
     char use_snet[OPTION_SIZE];
@@ -438,6 +467,7 @@ static struct options {
     .password = "",
     .tenant = "",
     .cache_timeout = "600",
+    .sync_cycle = "600",
     .authurl = "https://identity.api.rackspacecloud.com/v2.0/",
     .region = "",
     .use_snet = "false",
@@ -451,6 +481,7 @@ int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs
       sscanf(arg, " api_key = %[^\r\n ]", options.password) ||
       sscanf(arg, " password = %[^\r\n ]", options.password) ||
       sscanf(arg, " cache_timeout = %[^\r\n ]", options.cache_timeout) ||
+      sscanf(arg, " sync_cycle = %[^\r\n ]", options.sync_cycle) ||
       sscanf(arg, " authurl = %[^\r\n ]", options.authurl) ||
       sscanf(arg, " region = %[^\r\n ]", options.region) ||
       sscanf(arg, " use_snet = %[^\r\n ]", options.use_snet) ||
@@ -479,6 +510,7 @@ int main(int argc, char **argv)
   fuse_opt_parse(&args, &options, NULL, parse_option);
 
   cache_timeout = atoi(options.cache_timeout);
+  sync_cycle = atoi(options.sync_cycle);
 
   if (!*options.username || !*options.password)
   {
@@ -537,6 +569,7 @@ int main(int argc, char **argv)
     .chown = cfs_chown,
     .rename = cfs_rename,
     .init = cfs_init,
+    .destroy = cfs_destroy,
   };
 
   pthread_mutex_init(&dmut, NULL);
